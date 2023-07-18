@@ -81,6 +81,7 @@ test:
 #
 production:
   <<: *default
-  database: my_journey_production
-  username: my_journey
-  password: <%= ENV['MY_JOURNEY_DATABASE_PASSWORD'] %>
+  database: bible-books_production
+  username: biblebooks
+  password: <%= ENV['BIBLE-BOOKS_DATABASE_PASSWORD'] %>
+  url:  <%= ENV['DATABASE_URL'] %>
