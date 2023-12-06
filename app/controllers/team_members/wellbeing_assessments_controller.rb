@@ -70,12 +70,6 @@ module TeamMembers
                             .order(created_at: :desc)
     end
 
-    def csv_headers
-      ['ID', 'Date', 'User ID', 'User Name', 'User Date Of Birth', 'User Sex',
-       'User Gender Identity', 'User Ethnic Group', 'User Disabilities', 'User Tags', 'Team Member ID',
-       'Team Member Name'] + WellbeingMetric.all.order(:id).map(&:name)
-    end
-
     def base_path
       'wellbeing-assessments'
     end
@@ -170,10 +164,10 @@ module TeamMembers
     def index_breadcrumbs
       if user
         add_breadcrumb('Users', users_path, 'fas fa-user')
-        add_breadcrumb(user.full_name, user_path(user))
+        add_breadcrumb(user.full_name, user_path(user), 'fas fa-user')
       elsif team_member
         add_breadcrumb('Team Members', team_members_path, 'fas fa-users')
-        add_breadcrumb(team_member.full_name, team_member_path(team_member))
+        add_breadcrumb(team_member.full_name, team_member_path(team_member), 'fas fa-user')
       end
       add_breadcrumb('Wellbeing Assessments', nil, 'fas fa-heart')
     end

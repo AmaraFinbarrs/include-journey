@@ -10,10 +10,16 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 2023_06_02_104612) do
+ActiveRecord::Schema.define(version: 2023_11_07_202154) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
+
+  create_table "accommodation_types", force: :cascade do |t|
+    t.string "name"
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
+  end
 
   create_table "achievements", force: :cascade do |t|
     t.string "name", null: false
@@ -131,6 +137,28 @@ ActiveRecord::Schema.define(version: 2023_06_02_104612) do
     t.index ["team_member_id"], name: "index_diary_entry_view_logs_on_team_member_id"
   end
 
+  create_table "emergency_contacts", force: :cascade do |t|
+    t.string "name"
+    t.string "relationship"
+    t.bigint "number"
+    t.bigint "user_id", null: false
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
+    t.index ["user_id"], name: "index_emergency_contacts_on_user_id"
+  end
+
+  create_table "folders", force: :cascade do |t|
+    t.string "name"
+    t.bigint "parent_folder_id"
+    t.bigint "team_member_id", null: false
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
+    t.bigint "user_id"
+    t.index ["parent_folder_id"], name: "index_folders_on_parent_folder_id"
+    t.index ["team_member_id"], name: "index_folders_on_team_member_id"
+    t.index ["user_id"], name: "index_folders_on_user_id"
+  end
+
   create_table "goal_permissions", force: :cascade do |t|
     t.boolean "short_term", default: false
     t.boolean "long_term", default: false
@@ -162,14 +190,20 @@ ActiveRecord::Schema.define(version: 2023_06_02_104612) do
     t.index ["user_id"], name: "index_goals_on_user_id"
   end
 
+  create_table "housing_providers", force: :cascade do |t|
+    t.string "name"
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
+  end
+
   create_table "messages", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "team_member_id", null: false
+    t.bigint "note_id", null: false
     t.boolean "read", default: false
     t.string "message_status"
     t.datetime "created_at", precision: 6, null: false
     t.datetime "updated_at", precision: 6, null: false
-    t.bigint "note_id"
     t.index ["note_id"], name: "index_messages_on_note_id"
     t.index ["team_member_id"], name: "index_messages_on_team_member_id"
     t.index ["user_id"], name: "index_messages_on_user_id"
@@ -200,12 +234,43 @@ ActiveRecord::Schema.define(version: 2023_06_02_104612) do
     t.index ["user_id"], name: "index_notes_on_user_id"
   end
 
+  create_table "notifications", force: :cascade do |t|
+    t.bigint "team_member_id"
+    t.bigint "user_id"
+    t.text "message"
+    t.boolean "viewed", default: false
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
+    t.bigint "upload_id"
+    t.index ["team_member_id"], name: "index_notifications_on_team_member_id"
+    t.index ["upload_id"], name: "index_notifications_on_upload_id"
+    t.index ["user_id"], name: "index_notifications_on_user_id"
+  end
+
+  create_table "priorities", force: :cascade do |t|
+    t.string "name"
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
+  end
+
+  create_table "referred_froms", force: :cascade do |t|
+    t.string "name"
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
+  end
+
   create_table "sessions", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.date "session_at", null: false
     t.datetime "created_at", precision: 6, null: false
     t.datetime "updated_at", precision: 6, null: false
     t.index ["user_id"], name: "index_sessions_on_user_id"
+  end
+
+  create_table "support_ending_reasons", force: :cascade do |t|
+    t.string "name"
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
   end
 
   create_table "survey_answers", force: :cascade do |t|
@@ -292,6 +357,15 @@ ActiveRecord::Schema.define(version: 2023_06_02_104612) do
     t.index ["team_member_id"], name: "index_tags_on_team_member_id"
   end
 
+  create_table "team_member_notification_frequencies", force: :cascade do |t|
+    t.string "accommodation_status", default: "6 months"
+    t.string "wellbeing_assessment", default: "3 months"
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
+    t.bigint "team_member_id", null: false
+    t.index ["team_member_id"], name: "index_team_member_notification_frequencies_on_team_member_id"
+  end
+
   create_table "team_members", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
@@ -325,10 +399,52 @@ ActiveRecord::Schema.define(version: 2023_06_02_104612) do
     t.integer "consumed_timestep"
     t.boolean "otp_required_for_login"
     t.string "otp_backup_codes", array: true
+    t.integer "total_upload_size", default: 0
     t.index ["confirmation_token"], name: "index_team_members_on_confirmation_token", unique: true
     t.index ["email"], name: "index_team_members_on_email", unique: true
     t.index ["reset_password_token"], name: "index_team_members_on_reset_password_token", unique: true
     t.index ["unlock_token"], name: "index_team_members_on_unlock_token", unique: true
+  end
+
+  create_table "upload_activity_logs", force: :cascade do |t|
+    t.string "activity_type"
+    t.datetime "activity_time"
+    t.integer "activity_count", default: 0
+    t.bigint "team_member_id", null: false
+    t.bigint "upload_id", null: false
+    t.string "user_full_name"
+    t.string "upload_file_name"
+    t.datetime "file_created_date"
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
+  end
+
+  create_table "upload_files", force: :cascade do |t|
+    t.string "name"
+    t.binary "data"
+    t.string "content_type"
+    t.bigint "upload_id", null: false
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
+    t.index ["upload_id"], name: "index_upload_files_on_upload_id"
+  end
+
+  create_table "uploads", force: :cascade do |t|
+    t.text "comment"
+    t.string "status", default: "pending"
+    t.string "added_by"
+    t.bigint "added_by_id"
+    t.string "approved_by"
+    t.datetime "approved_at"
+    t.boolean "visible_to_user", default: true
+    t.bigint "user_id", null: false
+    t.bigint "team_member_id"
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
+    t.bigint "parent_folder_id"
+    t.index ["parent_folder_id"], name: "index_uploads_on_parent_folder_id"
+    t.index ["team_member_id"], name: "index_uploads_on_team_member_id"
+    t.index ["user_id"], name: "index_uploads_on_user_id"
   end
 
   create_table "user_achievements", force: :cascade do |t|
@@ -438,10 +554,41 @@ ActiveRecord::Schema.define(version: 2023_06_02_104612) do
     t.boolean "suspended", default: false
     t.datetime "suspended_at"
     t.text "summary_panel"
-    t.bigint "team_member_id"
+    t.integer "total_upload_size", default: 0
+    t.bigint "accommodation_type_id"
+    t.bigint "housing_provider_id"
+    t.bigint "support_ending_reason_id"
+    t.bigint "referred_from_id"
+    t.bigint "priority_id"
+    t.bigint "wallich_local_authority_id"
+    t.string "address"
+    t.datetime "referral_date"
+    t.datetime "mam_date"
+    t.datetime "support_started_date"
+    t.text "brief_physical_description"
+    t.datetime "support_ended_date"
+    t.datetime "next_review_date"
+    t.bigint "occupational_therapist_scores", default: [], array: true
+    t.datetime "occupational_therapist_scores_date"
+    t.bigint "old_occupational_therapist_scores", default: [], array: true
+    t.datetime "old_occupational_therapist_scores_dates", default: [], array: true
+    t.bigint "created_by_id"
+    t.index ["accommodation_type_id"], name: "index_users_on_accommodation_type_id"
+    t.index ["created_by_id"], name: "index_users_on_created_by_id"
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["housing_provider_id"], name: "index_users_on_housing_provider_id"
+    t.index ["priority_id"], name: "index_users_on_priority_id"
+    t.index ["referred_from_id"], name: "index_users_on_referred_from_id"
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
+    t.index ["support_ending_reason_id"], name: "index_users_on_support_ending_reason_id"
     t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true
+    t.index ["wallich_local_authority_id"], name: "index_users_on_wallich_local_authority_id"
+  end
+
+  create_table "wallich_local_authorities", force: :cascade do |t|
+    t.string "name"
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
   end
 
   create_table "wba_scores", force: :cascade do |t|
@@ -514,10 +661,15 @@ ActiveRecord::Schema.define(version: 2023_06_02_104612) do
   add_foreign_key "diary_entry_permissions", "team_members"
   add_foreign_key "diary_entry_view_logs", "diary_entries"
   add_foreign_key "diary_entry_view_logs", "team_members"
+  add_foreign_key "emergency_contacts", "users"
+  add_foreign_key "folders", "folders", column: "parent_folder_id"
+  add_foreign_key "folders", "team_members"
+  add_foreign_key "folders", "users"
   add_foreign_key "goal_permissions", "team_members"
   add_foreign_key "goal_permissions", "users"
   add_foreign_key "goals", "goal_types"
   add_foreign_key "goals", "users"
+  add_foreign_key "messages", "notes"
   add_foreign_key "messages", "team_members"
   add_foreign_key "messages", "users"
   add_foreign_key "metrics_services", "wellbeing_metrics"
@@ -526,6 +678,9 @@ ActiveRecord::Schema.define(version: 2023_06_02_104612) do
   add_foreign_key "notes", "notes", column: "replacing_id"
   add_foreign_key "notes", "team_members"
   add_foreign_key "notes", "users"
+  add_foreign_key "notifications", "team_members"
+  add_foreign_key "notifications", "uploads"
+  add_foreign_key "notifications", "users"
   add_foreign_key "sessions", "users"
   add_foreign_key "survey_answers", "survey_questions"
   add_foreign_key "survey_answers", "survey_responses"
@@ -537,12 +692,24 @@ ActiveRecord::Schema.define(version: 2023_06_02_104612) do
   add_foreign_key "survey_responses", "users"
   add_foreign_key "survey_sections", "surveys"
   add_foreign_key "surveys", "team_members"
+  add_foreign_key "team_member_notification_frequencies", "team_members"
+  add_foreign_key "upload_files", "uploads"
+  add_foreign_key "uploads", "folders", column: "parent_folder_id"
+  add_foreign_key "uploads", "team_members"
+  add_foreign_key "uploads", "users"
   add_foreign_key "user_achievements", "achievements"
   add_foreign_key "user_achievements", "users"
   add_foreign_key "user_pins", "team_members"
   add_foreign_key "user_pins", "users"
   add_foreign_key "user_profile_view_logs", "team_members"
   add_foreign_key "user_profile_view_logs", "users"
+  add_foreign_key "users", "accommodation_types"
+  add_foreign_key "users", "housing_providers"
+  add_foreign_key "users", "priorities"
+  add_foreign_key "users", "referred_froms"
+  add_foreign_key "users", "support_ending_reasons"
+  add_foreign_key "users", "team_members", column: "created_by_id"
+  add_foreign_key "users", "wallich_local_authorities"
   add_foreign_key "wba_scores", "wellbeing_assessments"
   add_foreign_key "wba_scores", "wellbeing_metrics"
   add_foreign_key "wellbeing_assessments", "team_members"

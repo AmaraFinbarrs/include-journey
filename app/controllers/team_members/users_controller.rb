@@ -6,9 +6,10 @@ module TeamMembers
     before_action :check_admin, only: %i[suspend destroy]
     include Pagination
 
-    before_action :user, except: :index
-    before_action :goal_permissions, except: :index
-    before_action :user_pin, except: %i[show index wba_history]
+    before_action :user, except: %i[index new create]
+    before_action :goal_permissions, except: %i[index new create]
+    before_action :user_pin, except: %i[show index wba_history new create]
+    before_action :wallich_protected, only: %i[new create]
 
     # GET /users/:id
     def show
@@ -26,8 +27,10 @@ module TeamMembers
       @new_user_tag = UserTag.new(team_member: current_team_member, user: @user, created_at: DateTime.now)
       @contact_logs = ContactLog.where('user_id': @user.id)
       @summary_panel = @user.summary_panel
-
+      @uploads = @user.uploads
+      @new_folder = Folder.new
       has_goal_permissions
+      @has_folders = current_team_member.folders.where(parent_folder: nil).length > 0
 
       render 'show'
     end
@@ -87,10 +90,25 @@ module TeamMembers
       if user_params[:summary_panel].present?
         @user.update(summary_panel: user_params[:summary_panel])
       else
-        @user.update(user_params)
+        if user_params[:first_occupational_therapist_score].present? && user_params[:second_occupational_therapist_score].present?
+          ot_scores = user_params.extract!(:first_occupational_therapist_score, :second_occupational_therapist_score)
+          update_occupational_therapist_scores(ot_scores)
+        end
+        @user.update(user_params.except(:first_occupational_therapist_score, :second_occupational_therapist_score))
       end
 
       redirect_to user_path(@user), flash: { success: "#{@user.full_name} was successfully updated." }
+    end
+
+    def update_occupational_therapist_scores(ot_scores)
+      scores = [ot_scores[:first_occupational_therapist_score],
+                ot_scores[:second_occupational_therapist_score]]
+      unless @user.occupational_therapist_scores == []
+        @user.old_occupational_therapist_scores.push(@user.occupational_therapist_scores)
+        @user.old_occupational_therapist_scores_dates.push(@user.occupational_therapist_scores_date)
+        @user.save!
+      end
+      @user.update(occupational_therapist_scores: scores, occupational_therapist_scores_date: Time.now)
     end
 
     def suspend
@@ -100,6 +118,40 @@ module TeamMembers
       user.save!
 
       redirect_to user_path(@user), flash: { success: "#{@user.full_name} was successfully #{user.suspended ? "suspended" : "reinstated"}." }
+    end
+
+    def new
+      add_breadcrumb("Add User")
+      @user = User.new
+    end
+    
+    def create
+      characters = ('A'..'Z').to_a + ('a'..'z').to_a + ('0'..'9').to_a
+      password = Array.new(6) { characters.sample }.join
+      
+      @user = User.create(
+        email: user_params[:email],
+        first_name: user_params[:first_name],
+        last_name: user_params[:last_name],
+        mobile_number: user_params[:mobile_number],
+        date_of_birth: user_params[:date_of_birth],
+        email: user_params[:email],
+        religion: user_params[:religion],
+        disabilities: user_params[:disabilities],
+        address: user_params[:address],
+        pronouns: user_params[:pronouns],
+        terms: true
+        )
+      @user.password = password
+      if !@user.validate
+        add_breadcrumb("Add User")
+        return render 'new', status: :unprocessable_entity
+      end 
+      @user.approved = true
+      @user.save!
+      @user.assign_team_member(current_team_member.id)
+      flash[:success] = 'User successfully created' 
+      redirect_to users_path
     end
 
     protected
@@ -124,15 +176,15 @@ module TeamMembers
     def resources
       case @sort
       when 'average'
-        @users = User.approved.last_wellbeing.where.not(id: @pinned_users).order("#{@sort}": @direction)
+        @users = team_member_users.approved.last_wellbeing.where.not(id: @pinned_users).order("#{@sort}": @direction)
       when 'first_name'
         # switch direction for alphabet sort
         @direction_flipped = @direction == 'desc' ? 'asc' : 'desc'
-        @users = User.approved.includes(:wellbeing_assessments, :user_tags)
+        @users = team_member_users.approved.includes(:wellbeing_assessments, :user_tags)
                      .where.not(id: @pinned_users)
                      .order({ "#{@sort}": @direction_flipped, "last_name": @direction_flipped })
       else
-        @users = User.approved.includes(:wellbeing_assessments, :user_tags)
+        @users = team_member_users.approved.includes(:wellbeing_assessments, :user_tags)
                      .where.not(id: @pinned_users)
                      .order({ "#{@sort}": @direction })
       end
@@ -167,6 +219,14 @@ module TeamMembers
 
     private
 
+    def team_member_users
+      if current_team_member.admin?
+        User.all
+      else
+        current_team_member.users
+      end
+    end
+
     def log_view
       view_log = current_team_member.user_profile_view_logs.find_or_create_by!(user: @user)
       view_log.increment_view_count
@@ -176,7 +236,7 @@ module TeamMembers
     end
 
     def user
-      @user = User.includes(:notes).find(ActiveRecord::Base::sanitize_sql_for_conditions(params[:id]))
+      @user = team_member_users.includes(:notes).find(ActiveRecord::Base::sanitize_sql_for_conditions(params[:id]))
     rescue ActiveRecord::RecordNotFound
       redirect_back(fallback_location: users_path, flash: { error: 'User not found' })
     end
@@ -240,11 +300,16 @@ module TeamMembers
     end
 
     def user_params
-      params.require(:user).permit(:first_name, :last_name, :pronouns, :date_of_birth, :email, :mobile_number, :sex, 
+      params.require(:user).permit(:first_name, :last_name, :pronouns, :date_of_birth, :email, :mobile_number, :sex,
                                    :gender_identity, :religion, :ethnic_group, :disabilities,
                                    :nomis_id, :pnc_no, :delius_no, :enrolled_at, :intervened_at,
                                    :release_establishment, :probation_area, :local_authority, :pilot_completed_at,
-                                   :pilot_withdrawn_at, :withdrawn, :withdrawn_reason, :index_offence, :summary_panel)
+                                   :pilot_withdrawn_at, :withdrawn, :withdrawn_reason, :index_offence, :summary_panel,
+                                   :referral_date, :mam_date, :accommodation_type_id, :housing_provider_id,
+                                   :brief_physical_description, :priority_id, :local_authority_id,
+                                   :support_ended_date, :next_review_date, :support_ending_reason_id,
+                                   :referred_from_id, :support_started_date, :address,
+                                   :first_occupational_therapist_score, :second_occupational_therapist_score)
     end
 
     def users_params
@@ -254,6 +319,12 @@ module TeamMembers
     def set_breadcrumbs
       path = action_name == 'index' ? nil : users_path
       add_breadcrumb('Users', path, 'fas fa-user')
+    end
+
+    def wallich_protected
+      if ENV['ORGANISATION_NAME'] != 'wallich-journey'
+        redirect_back(fallback_location: authenticated_team_member_root_path)
+      end
     end
   end
 end
